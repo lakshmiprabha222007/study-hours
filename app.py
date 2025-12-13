@@ -1,80 +1,90 @@
+import streamlit as st
 import numpy as np
 import pickle
-from flask import Flask, request, jsonify
 
 # --- Configuration and Constants ---
+# Make sure your model file is in the same directory!
 MODEL_PATH = 'trained_study_hour_LR_model.pkl'
 
-# --- Flask App Initialization ---
-app = Flask(__name__)
-
-# --- Model Loading ---
-try:
-    with open(MODEL_PATH, 'rb') as file:
-        model = pickle.load(file)
-    print(f"Model loaded successfully from {MODEL_PATH}")
-    # Extract model info for logging/debugging
-    COEF = model.coef_[0]
-    INTERCEPT = model.intercept_
-    print(f"Model Coeff: {COEF:.4f}, Intercept: {INTERCEPT:.4f}")
-except FileNotFoundError:
-    print(f"ERROR: Model file {MODEL_PATH} not found. Prediction endpoint will be disabled.")
-    model = None
-except Exception as e:
-    print(f"ERROR loading model: {e}")
-    model = None
-
-# --- Web Routes ---
-
-@app.route('/')
-def home():
-    """Simple health check."""
-    return (
-        "<h1>Study Hour Predictor API</h1>"
-        "<p>Send a **POST** request to the `/predict` endpoint with a JSON payload to get a score prediction.</p>"
-    )
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    """Handles prediction requests."""
-
-    if model is None:
-        return jsonify({'error': 'Model could not be loaded on the server.'}), 500
-
-    # 1. Get JSON input
-    data = request.get_json(silent=True)
-    if not data or 'hours' not in data:
-        return jsonify({'error': 'Invalid JSON or missing required key: "hours"'}), 400
-
-    # 2. Process Input
+# --- Model Loading (using caching for performance) ---
+@st.cache_resource
+def load_model():
+    """
+    Loads the pickled scikit-learn model once and caches it.
+    """
     try:
-        study_hours = float(data['hours'])
-        
-        # scikit-learn models expect input as a 2D array: [[feature_value]]
-        input_data = np.array([[study_hours]])
-        
-    except ValueError:
-        return jsonify({'error': 'Invalid value for hours. Must be a number.'}), 400
-
-    # 3. Make Prediction
-    try:
-        prediction = model.predict(input_data)[0]
-        predicted_score = round(float(prediction), 2)
-
+        with open(MODEL_PATH, 'rb') as file:
+            model = pickle.load(file)
+        return model
+    except FileNotFoundError:
+        st.error(f"Error: Model file '{MODEL_PATH}' not found. Check the file name and path.")
+        return None
     except Exception as e:
-        return jsonify({'error': f'Prediction error: {e}'}), 500
+        st.error(f"Error loading model: {e}")
+        return None
 
-    # 4. Return Result
-    response = {
-        'study_hours': study_hours,
-        'predicted_score': predicted_score,
-        'model_version': 'sklearn 1.6.1'
-    }
+# Load the model globally
+model = load_model()
 
-    return jsonify(response)
+# --- Streamlit App Layout ---
 
+st.set_page_config(
+    page_title="Study Hour Score Predictor",
+    page_icon="🎓",
+    layout="centered"
+)
 
-# --- Run the App ---
-if __name__ == '__main__':
-    # Run the application
-    app.run(debug=True)
+st.title("🎓 Predictive Modeling Demo: Study Hours to Score")
+st.markdown("---")
+
+if model is not None:
+    # --- Input Section ---
+    st.header("1. Input Study Hours")
+    
+    # Create an interactive slider for the user to select study hours
+    study_hours = st.slider(
+        'Select the number of hours studied:',
+        min_value=0.0,
+        max_value=20.0,
+        value=5.0, # Default value
+        step=0.1,
+        help="Adjust the slider to see how study hours impact the predicted score."
+    )
+    
+    # Display the current selected value
+    st.info(f"Selected study time: **{study_hours:.1f} hours**")
+    
+    # --- Prediction Logic ---
+    st.header("2. Predicted Exam Score")
+    
+    # Using a button to trigger the prediction
+    if st.button('Calculate Predicted Score', use_container_width=True):
+        try:
+            # Prepare the input data for the scikit-learn model
+            # Input must be a 2D array: [[study_hours]]
+            input_data = np.array([[study_hours]])
+            
+            # Make the prediction
+            prediction = model.predict(input_data)[0]
+            
+            # Format the output
+            predicted_score = round(float(prediction), 2)
+            
+            # Display the result
+            st.success(f"Based on **{study_hours:.1f} hours** of study, the predicted exam score is:")
+            st.balloons()
+            st.metric(label="Predicted Score", value=f"{predicted_score}")
+
+            with st.expander("Show Model Details"):
+                st.write(f"**Model Type:** Linear Regression (sklearn 1.6.1)")
+                st.write(f"**Coefficient (Impact per Hour):** {model.coef_[0]:.2f}")
+                st.write(f"**Intercept (Base Score):** {model.intercept_:.2f}")
+
+        except Exception as e:
+            st.error(f"An error occurred during prediction: {e}")
+
+else:
+    st.warning("The predictive model could not be loaded. Please check the file.")
+
+st.markdown("---")
+st.caption("App built with Streamlit.")
