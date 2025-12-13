@@ -1,23 +1,15 @@
 import numpy as np
 import joblib
+import sklearn   # explicitly using sklearn
 from sklearn.linear_model import LogisticRegression
-from sklearn.datasets import load_iris
 
-# Load dataset
-X, y = load_iris(return_X_y=True)
+# Load trained sklearn model
+model = joblib.load("trained_study_hour_LR_model.pkl")
 
-# Train model
-model = LogisticRegression(max_iter=200)
-model.fit(X, y)
+# Input: study hours
+X = np.array([[5]])   # example: 5 hours
 
-# Save model
-joblib.dump(model, "model.pkl")
+# Prediction
+prediction = model.predict(X)
 
-# Load model
-loaded_model = joblib.load("model.pkl")
-
-# Test prediction
-sample = np.array([[5.1, 3.5, 1.4, 0.2]])
-prediction = loaded_model.predict(sample)
-
-print("Prediction:", prediction)
+print("Predicted Output:", prediction)
