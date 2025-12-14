@@ -1,17 +1,19 @@
 import streamlit as st
-import numpy as np
 import pickle
-from sklearn.linear_model import LogisticRegression
+import numpy as np
 
-st.title("Study Hours Prediction App")
-
-# Load trained sklearn model using pickle
+# Load trained model
 with open("trained_study_hour_LR_model.pkl", "rb") as file:
     model = pickle.load(file)
 
+st.title("📘 Study Hours Prediction App")
+
+st.write("Enter the number of study hours to predict marks")
+
 # User input
-hours = st.number_input("Enter study hours", min_value=0.0, step=1.0)
+hours = st.number_input("Study Hours", min_value=0.0, max_value=24.0, step=0.5)
 
 if st.button("Predict"):
-    prediction = model.predict(np.array([[hours]]))
-    st.success(f"Prediction: {prediction[0]}")
+    hours_array = np.array([[hours]])
+    prediction = model.predict(hours_array)
+    st.success(f"Predicted Marks: {prediction[0]:.2f}")
